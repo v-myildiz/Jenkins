@@ -2,7 +2,7 @@ name: Run update-since-todo.py
 
 on:
   schedule:
-    - cron: "0 16 * * WED"
+    - cron: "0 16 * * THU"
   workflow_dispatch:
 
 permissions:
