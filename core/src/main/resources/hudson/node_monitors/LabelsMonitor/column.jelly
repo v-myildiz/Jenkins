@@ -1,0 +1,53 @@
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:s="/lib/form">
+  <style type="text/css">
+  .labels {
+    flex:99;
+  }
+  .labelcolumnbox > span {
+    padding-top: 1.5px;
+    margin-top: 2px;
+    margin-bottom: 2px;
+  }
+  .labelcolumnbox > span > svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  </style>
+  <td align="right">
+    <div class="expanding-input">
+    <div class="labels">
+      <nobr>
+        <j:set var="count" value="1"/>
+        <j:forEach var="entry" items="${data.labels}">
+          <j:if test="${count &lt;= from.maxLabelCount || from.maxLabelCount &lt; 0}">
+              <a class="jenkins-table__link model-link inside" href="${rootURL}/label/${entry.name}" tooltip="${h.escape(entry.description)}">${entry.name}</a>
+          </j:if>
+          <j:set var="count" value="${count + 1}"/>
+        </j:forEach>
+        <div id="labels-${data.computerName}" class="default-hidden">
+          <j:set var="count" value="1"/>
+          <j:forEach var="entry" items="${data.labels}">
+            <j:if test="${count &gt; from.maxLabelCount &amp;&amp; from.maxLabelCount &gt; 0}">
+              <a class="jenkins-table__link model-link inside" href="${rootURL}/label/${entry.name}" tooltip="${h.escape(entry.description)}">${entry.name}</a>
+              <j:if test="${count &gt; from.maxLabelCount &amp;&amp; count % from.maxLabelCount == 0}">
+                <br/>
+              </j:if>
+            </j:if>
+            <j:set var="count" value="${count + 1}"/>
+          </j:forEach>
+        </div>
+      </nobr>
+    </div>
+    <j:if test="${count > from.maxLabelCount + 1}">
+      <div class="expanding-input__input labelcolumnbox" tooltip="${%View/Hide more labels}" data="${data.computerName}">
+        <span class="jenkins-table__button">
+          <l:icon id="icon-down-${data.computerName}" src="symbol-chevron-down"/>
+          <l:icon id="icon-up-${data.computerName}" src="symbol-chevron-up" class="default-hidden"/>
+        </span>
+      </div>
+    </j:if>
+    </div>
+  </td>
+  <st:adjunct includes="hudson.node_monitors.LabelsMonitor.labels-monitor"/>
+</j:jelly>
