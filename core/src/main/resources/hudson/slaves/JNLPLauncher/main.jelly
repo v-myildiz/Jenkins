@@ -42,7 +42,7 @@ THE SOFTWARE.
             <j:when test="${it.ACL.hasPermission(app.ANONYMOUS, it.CONNECT)}">
                 <h3>
                   ${%slaveAgent.cli.run} (Unix)
-                  <l:copyButton text="${copy_agent_jar_unix};${copy_java_cmd_unix}"/>
+                  <l:copyButton text="${copy_agent_jar_unix} ; ${copy_java_cmd_unix}"/>
                 </h3>
 <pre>
 ${copy_agent_jar_unix}
@@ -64,7 +64,7 @@ ${copy_java_cmd_windows}
                 <j:set var="copy_java_cmd_secret_windows" value="java -jar agent.jar -url ${jenkinsURL} -secret ${it.jnlpMac} ${it.launcher.getRemotingOptionsWindows(it)}${it.launcher.getWorkDirOptions(it)}" />
                 <h3>
                   ${%slaveAgent.cli.run} (Unix)
-                  <l:copyButton text="${copy_agent_jar_unix};${copy_java_cmd_secret_unix}"/>
+                  <l:copyButton text="${copy_agent_jar_unix} ; ${copy_java_cmd_secret_unix}"/>
                 </h3>
                 <!-- TODO conceal secret w/ JS if possible -->
 <pre>
@@ -87,7 +87,7 @@ ${copy_java_cmd_secret_windows}
                 <j:set var="copy_java_cmd_secret2_windows" value="java -jar agent.jar -url ${jenkinsURL} -secret @secret-file ${it.launcher.getRemotingOptionsWindows(it)}${it.launcher.getWorkDirOptions(it)}" />
                 <h3>
                   ${%slaveAgent.cli.run.secret} (Unix)
-                  <l:copyButton text="${copy_secret_to_file};${copy_agent_jar_unix};${copy_java_cmd_secret2_unix}"/>
+                  <l:copyButton text="${copy_secret_to_file} ; ${copy_agent_jar_unix} ; ${copy_java_cmd_secret2_unix}"/>
                 </h3>
 <pre>
 ${copy_secret_to_file}
