@@ -147,8 +147,8 @@ THE SOFTWARE.
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>jenkins-test-harness</artifactId>
-      <!-- TODO https://github.com/jenkinsci/jenkins-test-harness/pull/762 -->
-      <version>2226.v8c8c621d4a_52</version>
+      <!-- TODO https://github.com/jenkinsci/jenkins-test-harness/pull/770 -->
+      <version>2227.v03cf5e34a_812</version>
       <scope>test</scope>
       <exclusions>
         <exclusion>

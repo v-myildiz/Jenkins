@@ -36,6 +36,7 @@ import hudson.model.RootAction;
 import hudson.model.UpdateCenter;
 import hudson.slaves.Cloud;
 import hudson.util.FormValidation;
+import jakarta.servlet.ServletException;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -46,7 +47,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.servlet.ServletException;
 import jenkins.model.Jenkins;
 import jenkins.model.ModelObjectWithChildren;
 import jenkins.model.ModelObjectWithContextMenu;
@@ -56,8 +56,8 @@ import org.kohsuke.accmod.restrictions.DoNotUse;
 import org.kohsuke.accmod.restrictions.NoExternalUse;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerProxy;
-import org.kohsuke.stapler.StaplerRequest;
-import org.kohsuke.stapler.StaplerResponse;
+import org.kohsuke.stapler.StaplerRequest2;
+import org.kohsuke.stapler.StaplerResponse2;
 import org.kohsuke.stapler.interceptor.RequirePOST;
 import org.kohsuke.stapler.verb.POST;
 
@@ -103,7 +103,7 @@ public class CloudSet extends AbstractModelObject implements Describable<CloudSe
 
     @SuppressWarnings("unused") // stapler
     @Restricted(DoNotUse.class) // stapler
-    public String getCloudUrl(StaplerRequest request, Jenkins jenkins, Cloud cloud) {
+    public String getCloudUrl(StaplerRequest2 request, Jenkins jenkins, Cloud cloud) {
         String context = Functions.getNearestAncestorUrl(request, jenkins);
         if (Jenkins.get().getCloud(cloud.name) != cloud) { // this cloud is not the first occurrence with this name
             return context + "/cloud/cloudByIndex/" + getClouds().indexOf(cloud) + "/";
@@ -129,13 +129,13 @@ public class CloudSet extends AbstractModelObject implements Describable<CloudSe
     }
 
     @Override
-    public ModelObjectWithContextMenu.ContextMenu doChildrenContextMenu(StaplerRequest request, StaplerResponse response) throws Exception {
+    public ModelObjectWithContextMenu.ContextMenu doChildrenContextMenu(StaplerRequest2 request, StaplerResponse2 response) throws Exception {
         ModelObjectWithContextMenu.ContextMenu m = new ModelObjectWithContextMenu.ContextMenu();
         Jenkins.get().clouds.stream().forEach(c -> m.add(c));
         return m;
     }
 
-    public Cloud getDynamic(String name, StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
+    public Cloud getDynamic(String name, StaplerRequest2 req, StaplerResponse2 rsp) throws IOException, ServletException {
         return Jenkins.get().clouds.getByName(name);
     }
 
@@ -187,7 +187,7 @@ public class CloudSet extends AbstractModelObject implements Describable<CloudSe
      * First check point in creating a new cloud.
      */
     @RequirePOST
-    public synchronized void doCreate(StaplerRequest req, StaplerResponse rsp,
+    public synchronized void doCreate(StaplerRequest2 req, StaplerResponse2 rsp,
                                           @QueryParameter String name, @QueryParameter String mode,
                                           @QueryParameter String from) throws IOException, ServletException, Descriptor.FormException {
         final Jenkins jenkins = Jenkins.get();
@@ -227,7 +227,7 @@ public class CloudSet extends AbstractModelObject implements Describable<CloudSe
         }
     }
 
-    private void handleNewCloudPage(Descriptor<Cloud> descriptor, String name, StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException, Descriptor.FormException {
+    private void handleNewCloudPage(Descriptor<Cloud> descriptor, String name, StaplerRequest2 req, StaplerResponse2 rsp) throws IOException, ServletException, Descriptor.FormException {
         checkName(name);
         JSONObject formData = req.getSubmittedForm();
         formData.put("name", name);
@@ -241,7 +241,7 @@ public class CloudSet extends AbstractModelObject implements Describable<CloudSe
      * Really creates a new agent.
      */
     @POST
-    public synchronized void doDoCreate(StaplerRequest req, StaplerResponse rsp,
+    public synchronized void doDoCreate(StaplerRequest2 req, StaplerResponse2 rsp,
                                             @QueryParameter String cloudDescriptorName) throws IOException, ServletException, Descriptor.FormException {
         Jenkins.get().checkPermission(Jenkins.ADMINISTER);
         Descriptor<Cloud> cloudDescriptor = Cloud.all().findByName(cloudDescriptorName);
@@ -257,7 +257,7 @@ public class CloudSet extends AbstractModelObject implements Describable<CloudSe
     }
 
     @POST
-    public void doReorder(StaplerRequest req, StaplerResponse rsp) throws IOException {
+    public void doReorder(StaplerRequest2 req, StaplerResponse2 rsp) throws IOException {
         Jenkins.get().checkPermission(Jenkins.ADMINISTER);
         var names = req.getParameterValues("name");
         if (names == null) {

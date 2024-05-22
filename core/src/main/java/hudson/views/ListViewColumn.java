@@ -42,6 +42,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import jenkins.model.Jenkins;
 import net.sf.json.JSONObject;
+import org.kohsuke.stapler.StaplerRequest2;
 import org.kohsuke.stapler.export.Exported;
 
 /**
@@ -163,7 +164,7 @@ public abstract class ListViewColumn implements ExtensionPoint, Describable<List
                         continue;   // skip this
                     }
                 }
-                ListViewColumn lvc = d.newInstance(null, emptyJSON);
+                ListViewColumn lvc = d.newInstance((StaplerRequest2) null, emptyJSON);
                 if (!lvc.shownByDefault()) {
                     continue; // skip this
                 }
