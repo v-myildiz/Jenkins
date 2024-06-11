@@ -877,9 +877,7 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
         }
 
         class LinuxProcess extends UnixProcess {
-            private int ppid = -1;
-            private EnvVars envVars;
-            private List<String> arguments;
+            private ProcessProperties properties = new ProcessProperties(-1, null, null);
 
             LinuxProcess(int pid) throws IOException {
                 super(pid);
@@ -889,34 +887,34 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                     while ((line = r.readLine()) != null) {
                         line = line.toLowerCase(Locale.ENGLISH);
                         if (line.startsWith("ppid:")) {
-                            ppid = Integer.parseInt(line.substring(5).trim());
+                            properties.ppid = Integer.parseInt(line.substring(5).trim());
                             break;
                         }
                     }
                 }
-                if (ppid == -1)
+                if (properties.ppid == -1)
                     throw new IOException("Failed to parse PPID from /proc/" + pid + "/status");
             }
 
             @Override
             @CheckForNull
             public OSProcess getParent() {
-                return get(ppid);
+                return get(properties.ppid);
             }
 
             @Override
             @NonNull
             public synchronized List<String> getArguments() {
-                if (arguments != null)
-                    return arguments;
-                arguments = new ArrayList<>();
+                if (properties.arguments != null)
+                    return properties.arguments;
+                properties.arguments = new ArrayList<>();
                 try {
                     byte[] cmdline = Files.readAllBytes(Util.fileToPath(getFile("cmdline")));
                     int pos = 0;
                     for (int i = 0; i < cmdline.length; i++) {
                         byte b = cmdline[i];
                         if (b == 0) {
-                            arguments.add(new String(cmdline, pos, i - pos, StandardCharsets.UTF_8));
+                            properties.arguments.add(new String(cmdline, pos, i - pos, StandardCharsets.UTF_8));
                             pos = i + 1;
                         }
                     }
@@ -924,23 +922,23 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                     // failed to read. this can happen under normal circumstances (most notably permission denied)
                     // so don't report this as an error.
                 }
-                arguments = Collections.unmodifiableList(arguments);
-                return arguments;
+                properties.arguments = Collections.unmodifiableList(properties.arguments);
+                return properties.arguments;
             }
 
             @Override
             @NonNull
             public synchronized EnvVars getEnvironmentVariables() {
-                if (envVars != null)
-                    return envVars;
-                envVars = new EnvVars();
+                if (properties.envVars != null)
+                    return properties.envVars;
+                properties.envVars = new EnvVars();
                 try {
                     byte[] environ = Files.readAllBytes(Util.fileToPath(getFile("environ")));
                     int pos = 0;
                     for (int i = 0; i < environ.length; i++) {
                         byte b = environ[i];
                         if (b == 0) {
-                            envVars.addLine(new String(environ, pos, i - pos, StandardCharsets.UTF_8));
+                            properties.envVars.addLine(new String(environ, pos, i - pos, StandardCharsets.UTF_8));
                             pos = i + 1;
                         }
                     }
@@ -948,7 +946,7 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                     // failed to read. this can happen under normal circumstances (most notably permission denied)
                     // so don't report this as an error.
                 }
-                return envVars;
+                return properties.envVars;
             }
         }
     }
@@ -1001,14 +999,12 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
              */
             private final boolean b64;
 
-            private final int ppid;
+            private final transient ProcessProperties properties = new ProcessProperties(0, null,null);
 
             private final long pr_envp;
             private final long pr_argp;
             private final int argc;
-            private EnvVars envVars;
-            private List<String> arguments;
-
+            private static final long serialVersionUID = 1L;
             private AIXProcess(int pid) throws IOException {
                 super(pid);
 
@@ -1065,7 +1061,7 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                     if (adjust((int) pstatus.readLong()) != pid)
                         throw new IOException("pstatus PID mismatch"); // sanity check
 
-                    ppid = adjust((int) pstatus.readLong()); // AIX pids are stored as a 64 bit integer,
+                    properties.ppid = adjust((int) pstatus.readLong()); // AIX pids are stored as a 64 bit integer,
                                                             // but the first 4 bytes are always 0
                 }
 
@@ -1107,7 +1103,7 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                     if (adjust((int) psinfo.readLong()) != pid)
                         throw new IOException("psinfo PID mismatch"); // sanity check
 
-                    if (adjust((int) psinfo.readLong()) != ppid)
+                    if (adjust((int) psinfo.readLong()) != properties.ppid)
                         throw new IOException("psinfo PPID mismatch"); // sanity check
 
                     psinfo.seek(148); // offset of pr_argc
@@ -1121,18 +1117,18 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
             @Override
             @CheckForNull
             public OSProcess getParent() {
-                return get(ppid);
+                return get(properties.ppid);
             }
 
             @Override
             @NonNull
             public synchronized List<String> getArguments() {
-                if (arguments != null)
-                    return arguments;
+                if (properties.arguments != null)
+                    return properties.arguments;
 
-                arguments = new ArrayList<>(argc);
+                properties.arguments = new ArrayList<>(argc);
                 if (argc == 0) {
-                    return arguments;
+                    return properties.arguments;
                 }
 
                 try {
@@ -1146,7 +1142,7 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                         long argp = b64 ? m.getLong(0) : to64(m.getInt(0));
 
                         if (argp == 0) // Should never happen
-                            return arguments;
+                            return properties.arguments;
 
                         // Itterate through argument vector
                         for (int n = 0; ; n++) {
@@ -1158,7 +1154,7 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                                 break;
 
                             // now read the null-terminated string
-                            arguments.add(readLine(fd, addr, "arg[" + n + "]"));
+                            properties.arguments.add(readLine(fd, addr, "arg[" + n + "]"));
                         }
                     } finally  {
                        LIBC.close(fd);
@@ -1168,19 +1164,19 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                     // so don't report this as an error.
                 }
 
-                arguments = Collections.unmodifiableList(arguments);
-                return arguments;
+                properties.arguments = Collections.unmodifiableList(properties.arguments);
+                return properties.arguments;
             }
 
             @Override
             @NonNull
             public synchronized EnvVars getEnvironmentVariables() {
-                if (envVars != null)
-                    return envVars;
-                envVars = new EnvVars();
+                if (properties.envVars != null)
+                    return properties.envVars;
+                properties.envVars = new EnvVars();
 
                 if (pr_envp == 0) {
-                    return envVars;
+                    return properties.envVars;
                 }
 
                 try {
@@ -1194,7 +1190,7 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                         long envp = b64 ? m.getLong(0) : to64(m.getInt(0));
 
                         if (envp == 0) // Should never happen
-                            return envVars;
+                            return properties.envVars;
 
                         // Itterate through environment vector
                         for (int n = 0; ; n++) {
@@ -1206,7 +1202,7 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                                 break;
 
                             // now read the null-terminated string
-                            envVars.addLine(readLine(fd, addr, "env[" + n + "]"));
+                            properties.envVars.addLine(readLine(fd, addr, "env[" + n + "]"));
                         }
                     } finally  {
                        LIBC.close(fd);
@@ -1215,7 +1211,7 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                     // failed to read. this can happen under normal circumstances (most notably permission denied)
                     // so don't report this as an error.
                 }
-                return envVars;
+                return properties.envVars;
             }
 
             private String readLine(int fd, long addr, String prefix) throws IOException {
@@ -1327,7 +1323,9 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
              */
             private final boolean b64;
 
-            private final int ppid;
+            private final transient ProcessProperties properties = new ProcessProperties(0, null, null);
+            private static final long serialVersionUID = 1L;
+
             /**
              * Address of the environment vector.
              */
@@ -1337,8 +1335,7 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
              */
             private final long argp;
             private final int argc;
-            private EnvVars envVars;
-            private List<String> arguments;
+            // Fields envVars and arguments removed by refactoring to ProcessProperties
 
             private SolarisProcess(int pid) throws IOException {
                 super(pid);
@@ -1384,7 +1381,7 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                     psinfo.seek(8);
                     if (adjust(psinfo.readInt()) != pid)
                         throw new IOException("psinfo PID mismatch");   // sanity check
-                    ppid = adjust(psinfo.readInt());
+                    properties.ppid = adjust(psinfo.readInt());
 
                     /*
                      * Read the remainder of psinfo_t differently depending on whether the
@@ -1404,7 +1401,7 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                         b64 = psinfo.readByte() == PR_MODEL_LP64;
                     }
                 }
-                if (ppid == -1)
+                if (properties.ppid == -1)
                     throw new IOException("Failed to parse PPID from /proc/" + pid + "/status");
 
             }
@@ -1412,18 +1409,18 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
             @Override
             @CheckForNull
             public OSProcess getParent() {
-                return get(ppid);
+                return get(properties.ppid);
             }
 
             @Override
             @NonNull
             public synchronized List<String> getArguments() {
-                if (arguments != null)
-                    return arguments;
+                if (properties.arguments != null)
+                    return properties.arguments;
 
-                arguments = new ArrayList<>(argc);
+                properties.arguments = new ArrayList<>(argc);
                 if (argc == 0) {
-                    return arguments;
+                    return properties.arguments;
                 }
 
                 int psize = b64 ? 8 : 4;
@@ -1438,7 +1435,7 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                             LIBC.pread(fd, m, new NativeLong(psize), new NativeLong(argp + n * psize));
                             long addr = b64 ? m.getLong(0) : to64(m.getInt(0));
 
-                            arguments.add(readLine(fd, addr, "argv[" + n + "]"));
+                            properties.arguments.add(readLine(fd, addr, "argv[" + n + "]"));
                         }
                     } finally {
                         LIBC.close(fd);
@@ -1448,19 +1445,19 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                     // so don't report this as an error.
                 }
 
-                arguments = Collections.unmodifiableList(arguments);
-                return arguments;
+                properties.arguments = Collections.unmodifiableList(properties.arguments);
+                return properties.arguments;
             }
 
             @Override
             @NonNull
             public synchronized EnvVars getEnvironmentVariables() {
-                if (envVars != null)
-                    return envVars;
-                envVars = new EnvVars();
+                if (properties.envVars != null)
+                    return properties.envVars;
+                properties.envVars = new EnvVars();
 
                 if (envp == 0) {
-                    return envVars;
+                    return properties.envVars;
                 }
 
                 int psize = b64 ? 8 : 4;
@@ -1478,7 +1475,7 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                                 break;
 
                             // now read the null-terminated string
-                            envVars.addLine(readLine(fd, addr, "env[" + n + "]"));
+                            properties.envVars.addLine(readLine(fd, addr, "env[" + n + "]"));
                         }
                     } finally {
                         LIBC.close(fd);
@@ -1487,7 +1484,7 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                     // failed to read. this can happen under normal circumstances (most notably permission denied)
                     // so don't report this as an error.
                 }
-                return envVars;
+                return properties.envVars;
             }
 
             private String readLine(int fd, long addr, String prefix) throws IOException {
@@ -1596,45 +1593,45 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
         }
 
         private class DarwinProcess extends UnixProcess {
-            private final int ppid;
-            private EnvVars envVars;
-            private List<String> arguments;
+            private final transient ProcessProperties properties;
+            private static final long serialVersionUID = 1L;
+
 
             DarwinProcess(int pid, int ppid) {
                 super(pid);
-                this.ppid = ppid;
+                this.properties = new ProcessProperties(ppid, null, null);
             }
 
             @Override
             @CheckForNull
             public OSProcess getParent() {
-                return get(ppid);
+                return get(properties.ppid);
             }
 
             @Override
             @NonNull
             public synchronized EnvVars getEnvironmentVariables() {
-                if (envVars != null)
-                    return envVars;
+                if (properties.envVars != null)
+                    return properties.envVars;
                 parse();
-                return envVars;
+                return properties.envVars;
             }
 
             @Override
             @NonNull
             public synchronized List<String> getArguments() {
-                if (arguments != null)
-                    return arguments;
+                if (properties.arguments != null)
+                    return properties.arguments;
                 parse();
-                return arguments;
+                return properties.arguments;
             }
 
             private void parse() {
                 try {
 // allocate them first, so that the parse error wil result in empty data
                     // and avoid retry.
-                    arguments = new ArrayList<>();
-                    envVars = new EnvVars();
+                    properties.arguments = new ArrayList<>();
+                    properties.envVars = new EnvVars();
 
                     IntByReference argmaxRef = new IntByReference(0);
                     NativeLongByReference size = new NativeLongByReference(new NativeLong(sizeOfInt));
@@ -1746,15 +1743,15 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                     m.skip0();
                     try {
                         for (int i = 0; i < argc; i++) {
-                            arguments.add(m.readString());
+                            properties.arguments.add(m.readString());
                         }
                     } catch (IndexOutOfBoundsException e) {
-                        throw new IllegalStateException("Failed to parse arguments: pid=" + pid + ", arg0=" + args0 + ", arguments=" + arguments + ", nargs=" + argc + ". Please see https://www.jenkins.io/redirect/troubleshooting/darwin-failed-to-parse-arguments", e);
+                        throw new IllegalStateException("Failed to parse arguments: pid=" + pid + ", arg0=" + args0 + ", arguments=" + properties.arguments + ", nargs=" + argc + ". Please see https://www.jenkins.io/redirect/troubleshooting/darwin-failed-to-parse-arguments", e);
                     }
 
                     // read env vars that follow
                     while (m.peek() != 0)
-                        envVars.addLine(m.readString());
+                        properties.envVars.addLine(m.readString());
                 } catch (IOException e) {
                     // this happens with insufficient permissions, so just ignore the problem.
                 }
@@ -1881,33 +1878,33 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
 
         private class FreeBSDProcess extends UnixProcess {
 
-            private final int ppid;
-            private EnvVars envVars;
-            private List<String> arguments;
+            private final transient ProcessProperties properties;
+            private static final long serialVersionUID = 1L;
+
 
             FreeBSDProcess(int pid, int ppid) {
                 super(pid);
-                this.ppid = ppid;
+                this.properties = new ProcessProperties(ppid, null, null);
             }
 
             @Override
             @CheckForNull
             public OSProcess getParent() {
-                return get(ppid);
+                return get(properties.ppid);
             }
 
             @Override
             @NonNull
             public synchronized EnvVars getEnvironmentVariables() {
-                if (envVars != null) {
-                    return envVars;
+                if (properties.envVars != null) {
+                    return properties.envVars;
                 }
                 try {
                     /*
                      * Allocate first so that parse errors will result in empty data and avoid
                      * retry.
                      */
-                    envVars = new EnvVars();
+                    properties.envVars = new EnvVars();
 
                     int argmax = getArgmax();
                     Memory m = new Memory(argmax);
@@ -1925,25 +1922,25 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                                         + LIBC.strerror(Native.getLastError()));
                     }
 
-                    parse(m, size.getValue(), envVars::addLine);
+                    parse(m, size.getValue(), properties.envVars::addLine);
                 } catch (IOException e) {
                     // This happens with insufficient permissions, so just ignore the problem.
                 }
-                return envVars;
+                return properties.envVars;
             }
 
             @Override
             @NonNull
             public List<String> getArguments() {
-                if (arguments != null) {
-                    return arguments;
+                if (properties.arguments != null) {
+                    return properties.arguments;
                 }
                 try {
                     /*
                      * Allocate first so that parse errors will result in empty data and avoid
                      * retry.
                      */
-                    arguments = new ArrayList<>();
+                    properties.arguments = new ArrayList<>();
 
                     int argmax = getArgmax();
                     Memory m = new Memory(argmax);
@@ -1961,11 +1958,11 @@ public abstract class ProcessTree implements Iterable<OSProcess>, IProcessTree, 
                                         + LIBC.strerror(Native.getLastError()));
                     }
 
-                    parse(m, size.getValue(), arguments::add);
+                    parse(m, size.getValue(), properties.arguments::add);
                 } catch (IOException e) {
                     // This happens with insufficient permissions, so just ignore the problem.
                 }
-                return arguments;
+                return properties.arguments;
             }
 
             private int getArgmax() throws IOException {
