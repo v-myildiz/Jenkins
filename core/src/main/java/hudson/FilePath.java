@@ -1352,7 +1352,7 @@ public final class FilePath implements SerializableOnlyOverRemoting {
         }
 
         @Override
-        public void checkRoles(RoleChecker checker) throws SecurityException {
+        public void checkRoles(RoleChecker checker) {
             task.checkRoles(checker);
         }
 
@@ -3622,7 +3622,7 @@ public final class FilePath implements SerializableOnlyOverRemoting {
          * Role check comes from {@link FileCallable}s.
          */
         @Override
-        public void checkRoles(RoleChecker checker) throws SecurityException {
+        public void checkRoles(RoleChecker checker) {
             callable.checkRoles(checker);
         }
 
